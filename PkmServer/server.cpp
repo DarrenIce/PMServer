@@ -406,12 +406,12 @@ void Server::ConProcess(SOCKET sockClient)
 	while (true)
 	{
 		int rev = ::recv(sockClient, buffer, BUF_SIZE, 0);
-		buffer[rev] = '\0';
-		string b = buffer;
 		PMList pmlist[MAX_PMS+1];
 		pmlist[0].num = 0;
 		if (rev == -1)
 			break;
+		buffer[rev] = '\0';
+		string b = buffer;
 		if (buffer[0] == '1')
 		{
 			sign_up(sockClient);
@@ -429,13 +429,7 @@ void Server::ConProcess(SOCKET sockClient)
 			if (username != "NULL")
 			{
 				Exit(sockClient, username);
-				send_buf = "You have logged out successfully.\n";
-				::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
-			}
-			else
-			{
-				send_buf = "You havn't logged in.\n";
-				::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
+				cout << "User logged out" << ", port number: " << ::ntohs(addr_clt.sin_port) << endl;
 			}
 		}
 		else if (buffer[0] == '4')
@@ -537,7 +531,12 @@ void Server::UserLoss(SOCKET sockClient, string username)
 	{
 		lossnum++;
 		sprintf_s(sql, "UPDATE user_table SET LOSSNUM = %d WHERE name = '%s';", lossnum, username.c_str());
-		sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+		rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+		if (rc != SQLITE_OK)
+		{
+			fprintf(stderr, "SQL error:%s\n", zErrMsg);
+			sqlite3_free(zErrMsg);
+		}
 	}
 }
 int Server::userloss_callback(void *flag, int argc, char **argv, char **azColName)
@@ -555,13 +554,23 @@ void Server::UserWin(SOCKET sockClient, string username)
 	::recv(sockClient, (char*)&user, sizeof(UserInfo), 0);
 	char sql[SQL_SIZE];
 	sprintf_s(sql, "UPDATE user_table SET WINNUM = %d WHERE name = '%s';", user.WinNum, user.username);
-	sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+	rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+	if (rc != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error:%s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+	}
 	::send(sockClient, buffer, sizeof(buffer), 0);
 	::recv(sockClient, (char*)pmlist, (unsigned int)sizeof(PMList) * MAX_PMS, 0);
 	for (int i = 1; i <= pmlist[0].num; i++)
 	{
-		sprintf_s(sql, "UPDATA pokemon_table SET GRADE = %d, EXP = %d, SKILLS = %d, SKILL_BAR1 = %d, SKILL_BAR2 = %d, SKILL_BAR3 = %d, SKILL_BAR4 = %d WHERE OID = %d;",
+		sprintf_s(sql, "UPDATE pokemon_table SET GRADE = %d, EXP = %d, SKILLS = %d, SKILL_BAR1 = %d, SKILL_BAR2 = %d, SKILL_BAR3 = %d, SKILL_BAR4 = %d WHERE OID = %d;",
 			pmlist[i].grade, pmlist[i].exp, pmlist[i].skills, pmlist[i].skillbar[0], pmlist[i].skillbar[1], pmlist[i].skillbar[2], pmlist[i].skillbar[3], pmlist[i].onlyid);
-		sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+		rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+		if (rc != SQLITE_OK)
+		{
+			fprintf(stderr, "SQL error:%s\n", zErrMsg);
+			sqlite3_free(zErrMsg);
+		}
 	}
 }
