@@ -4,7 +4,7 @@
 
 Pokemon::Pokemon()
 {
-	grade = 0;
+	grade = 1;
 	Exp = 0;
 	getNature();
 	//个体值在0~31随机，基础点数置零
@@ -842,7 +842,7 @@ Pokemon::Pokemon()
 			skills[60].ppt = Normal;
 			skills[60].kind = Physical;
 			skills[60].power = 15;
-			skills[60].accuracy = 85;
+			skills[60].accuracy = 25;
 			skills[60].pp = 10;
 			skills[60].residual = skills[60].pp;
 			skills[60].ae = combo;
@@ -2139,9 +2139,9 @@ void Pokemon::FirstSave(std::string username, sqlite3 *db)
 {
 	char sql[512];
 	sprintf_s(sql, "INSERT INTO pokemon_table (USER,NAME,PMID,NICKY,GRADE,EXP,NATURE,PROPERTY,STR_IV,INT_IV,PHY_IV,STA_IV,RES_IV,AGI_IV,SKILLS,SKILL_BAR1,SKILL_BAR2,SKILL_BAR3,SKILL_BAR4)\
-		VALUES ('%s','%s',%d,'%s',%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,0,0,-1,-1,-1);"
+		VALUES ('%s','%s',%d,'%s',%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d);"
 		,username.c_str(),name.c_str(),id,nicky.c_str(),grade,Exp,nature, Ppt,
-		Str.IndividualValue, Int.IndividualValue, Phy.IndividualValue, Sta.IndividualValue, Res.IndividualValue, Agi.IndividualValue );
+		Str.IndividualValue, Int.IndividualValue, Phy.IndividualValue, Sta.IndividualValue, Res.IndividualValue, Agi.IndividualValue,al_have_skills,skill_bar[0],skill_bar[1],skill_bar[2],skill_bar[3] );
 	char *zErrMsg = 0;
 	int rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
 	if (rc != SQLITE_OK)

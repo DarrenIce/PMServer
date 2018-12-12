@@ -90,11 +90,13 @@ void Server::sign_up(SOCKET sockClient)
 		sqlite3_free(zErrMsg);
 		send_buf = "2";
 		::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
+		cout << "[" << username << "]" << "无法被创建，用户名已被使用" << endl;
 	}
 	else
 	{
 		send_buf = "1";
 		::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
+		cout << "[" << username << "]" << "用户创建成功" << endl;
 	}
 }
 int Server::username_valid(string str)//字母开头，允许 5~16 字节，允许字母数字下划线
@@ -147,6 +149,7 @@ string Server::login(SOCKET sockClient)
 		{
 			send_buf = "2";
 			::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
+			cout << "[" << username << "]" << "用户不存在" << endl;
 			username = "NULL";
 			return username;
 		}
@@ -154,6 +157,7 @@ string Server::login(SOCKET sockClient)
 		{
 			send_buf = "3";
 			::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
+			cout << "[" << username << "]" << "用户已在线" << endl;
 			username = "NULL";
 			return username;
 		}
@@ -175,12 +179,14 @@ string Server::login(SOCKET sockClient)
 				char bb[10];
 				::recv(sockClient, bb, sizeof(bb), 0);
 				::send(sockClient, (char*)&userinfo, sizeof(UserInfo), 0);
+				cout << "[" << username << "]" << "用户登录成功" << endl;
 				return username;
 			}
 			else
 			{
 				send_buf = "4";
 				::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
+				cout << "[" << username << "]" << "用户密码错误" << endl;
 				username = "NULL";
 				return username;
 			}
@@ -189,37 +195,23 @@ string Server::login(SOCKET sockClient)
 	username = "NULL";
 	return username;
 }
-void Server::OnlineUsers(SOCKET sockClient)
+void Server::OnlineUsers(SOCKET sockClient,string username)
 {
-	CallBackPara p[MAX_USERS];
+	UserInfo p[MAX_USERS];
 	string send_buf;
-	p[0].para = 0;
+	p[0].LossNum = 0;
 	string sql = "SELECT * FROM user_table WHERE ONLINE = 1;";
 	rc = sqlite3_exec(db, sql.c_str(), online_callback, p, &zErrMsg);
 	if (rc != SQLITE_OK)
 	{
 		fprintf(stderr, "SQL error:%s\n", zErrMsg);
 		sqlite3_free(zErrMsg);
+		//cout << "[" << username << "]" << "用户请求查看在线用户失败" << endl;
 	}
 	else
 	{
-		char oun[100];
-		std::cout << p[0].para << endl;
-		sprintf_s(oun, "%d", p[0].para);
-		send_buf = oun;
-		::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
-		send_buf = "";
-		if (p[0].para != 0)
-		{
-			int i;
-			for (i = 0; i < p[0].para - 1; i++)
-			{
-				send_buf += p[i].str;
-				send_buf += "#";
-			}
-			send_buf += p[i].str;
-			::send(sockClient, send_buf.c_str(), send_buf.size(), 0);
-		}
+		::send(sockClient, (char*)p, sizeof(UserInfo)*(p[0].LossNum + 1), 0);
+		//cout << "[" << username << "]" << "用户请求查看在线用户成功" << endl;
 	}
 }
 void Server::DistributePM(SOCKET sockClient, string username)
@@ -233,28 +225,36 @@ void Server::DistributePM(SOCKET sockClient, string username)
 	{
 		fprintf(stderr, "SQL error:%s\n", zErrMsg);
 		sqlite3_free(zErrMsg);
+		cout << "[" << username << "]" << "用户分配精灵失败" << endl;
 	}
 	else
 	{
 		Pokemon* PMptr;
 		if (pmlist.num == 0)
 		{
-			PMptr = new Venusaur;
+			PMptr = new Bulbasaur;
 			PMptr->FirstSave(username,db);
 			delete PMptr;
-			PMptr = new Charizard;
+			PMptr = new Charmander;
 			PMptr->FirstSave(username,db);
 			delete PMptr;
-			PMptr = new Blastoise;
+			PMptr = new Squirtle;
 			PMptr->FirstSave(username,db);
 			delete PMptr;
 			PMptr = NULL;
 		}
+		cout << "[" << username << "]" << "用户分配精灵成功" << endl;
 	}
 }
 void Server::DisplayPM(SOCKET sockClient,string username)
 {
 	char sql[256];
+	char buffer[10] = "1";
+	::send(sockClient, buffer, sizeof(buffer), 0);
+	char buff[100];
+	int rev = ::recv(sockClient, buff, sizeof(buff), 0);
+	buff[rev] = '\0';
+	username = buff;
 	sprintf_s(sql, "SELECT * FROM pokemon_table WHERE USER = '%s';",username.c_str());
 	PMList pmlist[MAX_PMS];
 	pmlist[0].num = 0;
@@ -263,8 +263,24 @@ void Server::DisplayPM(SOCKET sockClient,string username)
 	{
 		fprintf(stderr, "SQL error:%s\n", zErrMsg);
 		sqlite3_free(zErrMsg);
+		cout << "[" << username << "]" << "用户请求查看精灵失败" << endl;
 	}
-	int rev=::send(sockClient, (char*)pmlist, sizeof(PMList)*(pmlist[0].num+1), 0);
+	int a = pmlist[0].num;
+	int b = 0;
+	for (int i = 1; i <= a; i++)
+	{
+		if (pmlist[i].grade >= 15)
+			b++;
+	}
+	sprintf_s(sql, "UPDATE user_table SET PMNUM = %d, FULLLEVEL = %d WHERE NAME = '%s';", a, b, username.c_str());
+	rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+	if (rc != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error:%s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+	}
+	rev=::send(sockClient, (char*)pmlist, sizeof(PMList)*(pmlist[0].num+1), 0);
+	cout << "[" << username << "]" << "用户请求查看精灵成功" << endl;
 }
 int Server::login_callback(void *flag, int argc, char **argv, char **azColName)
 {
@@ -279,9 +295,14 @@ int Server::login_callback(void *flag, int argc, char **argv, char **azColName)
 }
 int Server::online_callback(void *flag, int argc, char **argv, char **azColName)
 {
-	CallBackPara *f = (CallBackPara *)flag;
-	f[f[0].para].str = argv[1];
-	f[0].para++;
+	UserInfo *f = (UserInfo *)flag;
+	f[0].LossNum++;
+	strcpy(f[f[0].LossNum].username, argv[1]);
+	strcpy(f[f[0].LossNum].password, argv[2]);
+	f[f[0].LossNum].WinNum = atoi(argv[4]);
+	f[f[0].LossNum].LossNum = atoi(argv[5]);
+	f[f[0].LossNum].PmNum = atoi(argv[6]);
+	f[f[0].LossNum].PerPmNum = atoi(argv[7]);
 	return 0;
 }
 int Server::DistributePM_callback(void *flag, int argc, char **argv, char **azColName)
@@ -321,6 +342,7 @@ void Server::Exit(SOCKET sockClient,string username)
 	char sql[100];
 	sprintf_s(sql, "UPDATE user_table SET ONLINE = 0 WHERE NAME = '%s';", username.c_str());
 	sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+	cout << "[" << username << "]" << "用户已登出" << endl;
 }
 void Server::SerClose()
 {
@@ -338,6 +360,9 @@ Server::Server()
 	create_usertable();
 	create_pkmtable();
 	
+	socks.clear();
+	live.clear();
+
 	thread_num = 0;
 	addr_svr.sin_family = AF_INET;
 	addr_svr.sin_port = htons(SER_PORT);
@@ -378,11 +403,35 @@ Server::Server()
 //维护线程还需要改进,可以考虑根据this_thread::get_id 做一个映射，用joinable()查看线程是否存在
 void Server::WaitForClient()
 {
+
 	while (true)
 	{
 		addr_len = sizeof(addr_clt);
 		sock_clt = NULL;
 		sock_clt = ::accept(sock_svr, (SOCKADDR*)&addr_clt, &addr_len);
+		
+		auto i = threads.begin();
+		auto j = live.begin();
+
+		if (threads.size() != 0 && live.size() != 0)
+		{
+			while ((i != threads.end()) && (j != live.end()))
+			{
+				if ((*j) == 0)
+				{
+					cout << "线程 " << (*i).get_id() << " 已从vector中清除，当前线程数: " << thread_num - 1 << endl;
+					i->join();
+					i = threads.erase(i);
+					j = live.erase(j);
+				}
+				else
+				{
+					i++;
+					j++;
+				}
+			}
+			thread_num = threads.size();
+		}
 		if (sock_clt == INVALID_SOCKET)
 		{
 			cerr << "Failed to accept client!Error code: " << ::WSAGetLastError() << "\n";
@@ -390,18 +439,35 @@ void Server::WaitForClient()
 			system("pause");
 			exit(0);
 		}
-		if (thread_num < MAX_THREAD)
+		else
 		{
-			thread_fd[thread_num] = std::move(std::thread{ std::bind(&Server::ConProcess,this, sock_clt) });
-			thread_num++;
+			if (thread_num < MAX_THREAD)
+			{
+				cout << "有新线程加入" << endl;
+				socks.push_back(sock_clt);
+				//std::thread* tp = new std::thread(std::move(std::thread{ std::bind(&Server::ConProcess,this, sock_clt) }));
+				//threads.push_back(tp);
+				threads.push_back(std::move(std::thread{ std::bind(&Server::ConProcess,this, sock_clt) }));
+				live.push_back(1);
+				thread_num = threads.size();
+				cout << "该线程为: " << threads.back().get_id() << endl;
+				cout <<"当前线程数: " << thread_num << endl;
+			}
 		}
 	}
 }
+/*void Server::managethread()
+{
+	while (1)
+	{
+		
+	}
+}*/
 void Server::ConProcess(SOCKET sockClient)
 {
 	char buffer[BUF_SIZE];
 	string send_buf;
-	std::cout << "A new client connected...IP address: " << inet_ntoa(addr_clt.sin_addr) << ", port number: " << ::ntohs(addr_clt.sin_port) << endl;
+	//std::cout << "A new client connected...IP address: " << inet_ntoa(addr_clt.sin_addr) << ", port number: " << ::ntohs(addr_clt.sin_port) << endl;
 	string username="NULL";
 	while (true)
 	{
@@ -430,11 +496,16 @@ void Server::ConProcess(SOCKET sockClient)
 			{
 				Exit(sockClient, username);
 				cout << "User logged out" << ", port number: " << ::ntohs(addr_clt.sin_port) << endl;
+				break;
+			}
+			else
+			{
+				break;
 			}
 		}
 		else if (buffer[0] == '4')
 		{
-			OnlineUsers(sockClient);
+			OnlineUsers(sockClient,username);
 		}
 		else if (buffer[0] == '5')
 		{
@@ -448,8 +519,27 @@ void Server::ConProcess(SOCKET sockClient)
 		{
 			UserWin(sockClient, username);
 		}
+		else if (b == "ADD")
+		{
+			AddPm(sockClient, username);
+		}
+		else if (b == "ERASE")
+		{
+			ErasePm(sockClient, username);
+		}
 	}
 	std::cout << "The port was disconnected.  " << inet_ntoa(addr_clt.sin_addr) << ", port number: " << ::ntohs(addr_clt.sin_port) << endl;
+	auto i = socks.begin();
+	auto j = live.begin();
+	for (; i != socks.end(); i++,j++)
+	{
+		if ((*i) == sockClient)
+		{
+			socks.erase(i);
+			(*j) = 0;
+			break;
+		}
+	}
 	closesocket(sockClient);
 }
 /*int Server::send(SOCKET sockClient)
@@ -519,31 +609,18 @@ void Server::create_pkmtable()
 void Server::UserLoss(SOCKET sockClient, string username)
 {
 	char sql[SQL_SIZE];
-	sprintf_s(sql, "SELECT * from user_table where NAME ='%s';", username.c_str());
-	int lossnum;
-	rc = sqlite3_exec(db, sql, userloss_callback, &lossnum, &zErrMsg);
+	char buffer[10] = "1";
+	UserInfo user;
+	::send(sockClient, buffer, sizeof(buffer), 0);
+	::recv(sockClient, (char*)&user, sizeof(UserInfo), 0);
+	sprintf_s(sql, "UPDATE user_table SET LOSSNUM = %d, PMNUM = %d, FULLLEVEL = %d WHERE name = '%s';", user.LossNum, user.PmNum, user.PerPmNum, user.username);
+	rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
 	if (rc != SQLITE_OK)
 	{
 		fprintf(stderr, "SQL error:%s\n", zErrMsg);
 		sqlite3_free(zErrMsg);
 	}
-	else
-	{
-		lossnum++;
-		sprintf_s(sql, "UPDATE user_table SET LOSSNUM = %d WHERE name = '%s';", lossnum, username.c_str());
-		rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
-		if (rc != SQLITE_OK)
-		{
-			fprintf(stderr, "SQL error:%s\n", zErrMsg);
-			sqlite3_free(zErrMsg);
-		}
-	}
-}
-int Server::userloss_callback(void *flag, int argc, char **argv, char **azColName)
-{
-	int *p = (int *)flag;
-	(*p) = atoi(argv[5]);
-	return 0;
+	cout << "[" << username << "]" << "用户战斗失败" << endl;
 }
 void Server::UserWin(SOCKET sockClient, string username)
 {
@@ -573,4 +650,50 @@ void Server::UserWin(SOCKET sockClient, string username)
 			sqlite3_free(zErrMsg);
 		}
 	}
+	cout << "[" << username << "]" << "用户战斗胜利" << endl;
+}
+void Server::AddPm(SOCKET sockClient, string username)
+{
+	char buffer[10] = "1";
+	::send(sockClient, buffer, sizeof(buffer), 0);
+	PMList pm;
+	::recv(sockClient, (char*)&pm, sizeof(PMList), 0);
+	Pokemon* npm;
+	switch (pm.id)
+	{
+	case 1:npm = new Bulbasaur(pm); break;
+	case 2:npm = new Ivysaur(pm); break;
+	case 3:npm = new Venusaur(pm); break;
+	case 4:npm = new Charmander(pm); break;
+	case 5:npm = new Charmeleon(pm); break;
+	case 6:npm = new Charizard(pm); break;
+	case 7:npm = new Squirtle(pm); break;
+	case 8:npm = new Wartortle(pm); break;
+	case 9:npm = new Blastoise(pm); break;
+	case 10:npm = new Pidgey(pm); break;
+	case 11:npm = new Pidgeotto(pm); break;
+	case 12:npm = new Pidgeot(pm); break;
+	case 13:npm = new Pikachu(pm); break;
+	case 14:npm = new Raichu(pm); break;
+	case 15:npm = new Clefairy(pm); break;
+	case 16:npm = new Clefable(pm); break;
+	}
+	npm->FirstSave(username,db);
+	cout << "[" << username << "]" << "用户添加精灵成功" << endl;
+}
+void Server::ErasePm(SOCKET sockClient, std::string username)
+{
+	char buffer[10] = "1";
+	::send(sockClient, buffer, sizeof(buffer), 0);
+	int oid;
+	::recv(sockClient, (char*)&oid, sizeof(oid), 0);
+	char sql[256];
+	sprintf_s(sql, "DELETE FROM pokemon_table WHERE OID = %d;", oid);
+	rc = sqlite3_exec(db, sql, NULL, NULL, &zErrMsg);
+	if (rc != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error:%s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+	}
+	cout << "[" << username << "]" << "用户删除精灵成功" << endl;
 }

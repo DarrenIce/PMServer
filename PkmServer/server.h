@@ -39,12 +39,14 @@ public:
 	int rc;
 	SOCKET sock_svr;
 	SOCKET sock_clt;
+	std::vector<SOCKET> socks;
 	//std::string send_buf;
 	sockaddr_in addr_svr;
 	sockaddr_in addr_clt;
 	int addr_len;
 	int thread_num;
-	std::thread thread_fd[MAX_THREAD];
+	std::vector<std::thread> threads;
+	std::vector<int> live;
 
 	typedef struct cbp {
 		int para;
@@ -66,11 +68,13 @@ public:
 	void create_pkmtable();
 	void sign_up(SOCKET sockClient);
 	std::string login(SOCKET sockClient);
-	void OnlineUsers(SOCKET sockClient);
+	void OnlineUsers(SOCKET sockClient,std::string username);
 	void DistributePM(SOCKET sockClient, std::string username);
 	void DisplayPM(SOCKET sockClient, std::string username);
 	void UserLoss(SOCKET sockClient, std::string username);
 	void UserWin(SOCKET sockClient, std::string username);
+	void AddPm(SOCKET sockClient, std::string username);
+	void ErasePm(SOCKET sockClient, std::string username);
 	void Exit(SOCKET sockClient,std::string username);
 	void ext();
 	void SerClose();
@@ -80,9 +84,9 @@ public:
 	static int online_callback(void *flag, int argc, char **argv, char **azColName);
 	static int DistributePM_callback(void *flag, int argc, char **argv, char **azColName);
 	static int DisplayPM_callback(void *flag, int argc, char **argv, char **azColName);
-	static int userloss_callback(void *flag, int argc, char **argv, char **azColName);
 	Server();
 	void WaitForClient();
+	//void managethread();
 	//int send(SOCKET sockClient);
 	//int  rec(SOCKET sockClient);
 	void ConProcess(SOCKET sockClient);
