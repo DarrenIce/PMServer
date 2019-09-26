@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include "server.h"
 
 
@@ -677,6 +679,7 @@ void Server::AddPm(SOCKET sockClient, string username)
 	case 14:npm = new Raichu(pm); break;
 	case 15:npm = new Clefairy(pm); break;
 	case 16:npm = new Clefable(pm); break;
+	default: npm = new Bulbasaur(pm); break;
 	}
 	npm->FirstSave(username,db);
 	cout << "[" << username << "]" << "用户添加精灵成功" << endl;

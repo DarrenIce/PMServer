@@ -6,6 +6,7 @@
 #include <Windows.h>
 #include <string>
 #include <regex>
+#include<functional>
 
 #include "Semaphore.h"
 #include "pokemons.h"
